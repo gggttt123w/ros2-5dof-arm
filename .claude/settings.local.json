@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cmake --build .)",
+      "Bash(arm-none-eabi-gcc -fsyntax-only -std=gnu11 -DUSE_HAL_DRIVER -DSTM32F407xx -ICore/Inc -IDrivers/STM32F4xx_HAL_Driver/Inc -IDrivers/CMSIS/Device/ST/STM32F4xx/Include -IDrivers/CMSIS/Include Core/Src/main.c)",
+      "Bash(lsusb)",
+      "Bash(awk '/HAL_StatusTypeDef HAL_HalfDuplex_Init/,/^}/' Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_uart.c)",
+      "Bash(awk '/HAL_StatusTypeDef HAL_UART_Transmit\\\\\\(/,/^}/' Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_uart.c)",
+      "Bash(awk '/static HAL_StatusTypeDef UART_SetConfig/,/^}/' Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_uart.c)",
+      "WebSearch",
+      "Bash(cmake --preset Debug)",
+      "Read(//tmp/**)",
+      "Bash(cmake --build build/Debug)",
+      "Bash(cmake --build /tmp/rb_build)",
+      "Bash(make)",
+      "Bash(arm-none-eabi-gcc -c Core/Src/can.c -o /tmp/can.o -Wall -Wextra -std=c11 -O2 -DUSE_HAL_DRIVER -DSTM32F407xx -ICore/Inc -IDrivers/STM32F4xx_HAL_Driver/Inc -IDrivers/CMSIS/Device/ST/STM32F4xx/Include -IDrivers/CMSIS/Include -IMiddlewares/Third_Party/FreeRTOS/Source/include -IMiddlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2 -IMiddlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM4F)",
+      "Bash(echo \"=== exit=$? ===\")",
+      "Bash(arm-none-eabi-size /tmp/can.o)",
+      "Bash(arm-none-eabi-gcc -c Core/Src/can.c -o can_test.o -Wall -Wextra -std=c11 -O2 -DUSE_HAL_DRIVER -DSTM32F407xx -ICore/Inc -IDrivers/STM32F4xx_HAL_Driver/Inc -IDrivers/CMSIS/Device/ST/STM32F4xx/Include -IDrivers/CMSIS/Include)",
+      "Bash(arm-none-eabi-size can_test.o)",
+      "Bash(arm-none-eabi-gcc -c Core/Src/freertos.c -o frt_test.o -Wall -Wextra -std=c11 -O2 -DUSE_HAL_DRIVER -DSTM32F407xx -ICore/Inc -IDrivers/STM32F4xx_HAL_Driver/Inc -IDrivers/CMSIS/Device/ST/STM32F4xx/Include -IDrivers/CMSIS/Include -IMiddlewares/Third_Party/FreeRTOS/Source/include -IMiddlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2 -IMiddlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM4F)",
+      "WebFetch(domain:forum.hiwonder.com.cn)",
+      "WebFetch(domain:github.com)"
+    ]
+  }
+}
