@@ -1,3 +1,8 @@
 build
 mx.scratch
-!.settings
+!.settings/CMakeLists.txt
+/main.cpp
+/src/
+/include/
+/patches/
+/push.sh
