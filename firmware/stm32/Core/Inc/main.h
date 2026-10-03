@@ -72,6 +72,12 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
+#define PSRAM_Pin GPIO_PIN_15
+#define PSRAM_GPIO_Port GPIOA
+#define SIO3_Pin GPIO_PIN_0
+#define SIO3_GPIO_Port GPIOD
+#define SIO2_Pin GPIO_PIN_1
+#define SIO2_GPIO_Port GPIOD
 #define LED2_Pin GPIO_PIN_2
 #define LED2_GPIO_Port GPIOD
 #define LED1_Pin GPIO_PIN_3

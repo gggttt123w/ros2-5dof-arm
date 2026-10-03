@@ -315,6 +315,7 @@ void UART_task(void *argument)
         }
         default : break;
       }
+      osDelay(1);
       continue;
     }
     

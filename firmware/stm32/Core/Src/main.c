@@ -20,13 +20,16 @@
 #include "main.h"
 #include "cmsis_os.h"
 #include "can.h"
+#include "spi.h"
 #include "usart.h"
 #include "gpio.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <string.h>
+#include <stdio.h>
 #include "robot_arm.h"
+#include "aps6404.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -94,21 +97,13 @@ int main(void)
   MX_CAN1_Init();
   MX_USART3_UART_Init();
   MX_USART2_UART_Init();
+  MX_SPI3_Init();
   /* USER CODE BEGIN 2 */
   uint8_t can_ok = CAN_Init();
-  // uint8_t stat_tick = 0;
-  // uint8_t msg[8] = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08};
 
-  // char* ccmd2 = "#000P1500T0800!";
-  // HAL_Delay(1000);
-  // HAL_UART_Transmit(&huart3,(uint8_t*)ccmd2,strlen(ccmd2),1000);
   robot_arm_init();
   HAL_Delay(2000);
-  //CAN_send_position(1);
   
-  // Servo_set_angle(2,1500,T_NORMAL);
-  // Servo_set_angle(5,1500,T_NORMAL);
-  //Servo_set_angle(0,500,T_NORMAL);
   /* USER CODE END 2 */
 
   /* Init scheduler */
@@ -127,20 +122,7 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    // if (can_ok == HAL_OK)
-    // {
-    //   /* 每 1 秒发一帧测试数据；返回 HAL_ERROR 表示发送邮箱满，这里直接忽略 */
-    //   CAN_Send(0x123, msg, 8);
-    // }
-    // HAL_Delay(1000); // 延时1秒
 
-    // /* 每 2 秒打一行统计，确认板子还在跑、CAN 有没有出错 */
-    // stat_tick++;
-    // if (stat_tick >= 2U)
-    // {
-    //   stat_tick = 0U;
-    //   CAN_PrintStatus();
-    // }
     
     HAL_Delay(1000);
   }

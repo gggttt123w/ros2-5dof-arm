@@ -6,6 +6,8 @@
 #include <stdlib.h>
 #include "can.h"
 #include "robot_arm.h"
+
+#define TIMEOUT 20
 #define Servo_CMD_LEN 16
 
 void robot_arm_init(void){
@@ -22,10 +24,10 @@ uint16_t Servo_position_get(uint8_t id){
     char res[Servo_CMD_LEN];
     uint16_t position = 0;
     int len = snprintf(cmd,sizeof(cmd),"#%03dPRAD!",id);
-    HAL_UART_Transmit(&huart2,(uint8_t*)cmd,len,1000);
+    HAL_UART_Transmit(&huart2,(uint8_t*)cmd,len,TIMEOUT);
     //HAL_UART_Transmit(&huart3,(uint8_t*)cmd,len,1000);
     memset(res,0,sizeof(res));
-    if(HAL_UART_Receive(&huart2,(uint8_t*)res,11,1000) == HAL_OK){
+    if(HAL_UART_Receive(&huart2,(uint8_t*)res,11,TIMEOUT) == HAL_OK){
         res[sizeof(res)-1] = '\0';
         char *p = strchr(res, 'P');
         if (p != NULL) {
@@ -36,7 +38,7 @@ uint16_t Servo_position_get(uint8_t id){
     char cpos[5];
     memset(cpos,0,sizeof(cpos));
     sprintf(cpos,"%d",position);  
-    HAL_UART_Transmit(&huart3,(uint8_t*)cpos,strlen(cpos),1000);
+    HAL_UART_Transmit(&huart3,(uint8_t*)cpos,strlen(cpos),TIMEOUT);
 #endif
     return position;
 }
@@ -51,8 +53,8 @@ uint16_t Servo_mode_get(uint8_t id){
     // HAL_UART_Transmit(&huart3,(uint8_t*)cmd,len,1000);
     memset(res,0,sizeof(res));
 
-    HAL_UART_Transmit(&huart2,(uint8_t*)cmd,len,1000);
-    if(HAL_UART_Receive(&huart2,(uint8_t*)res,10,1000) == HAL_OK){
+    HAL_UART_Transmit(&huart2,(uint8_t*)cmd,len,TIMEOUT);
+    if(HAL_UART_Receive(&huart2,(uint8_t*)res,10,TIMEOUT) == HAL_OK){
         res[sizeof(res)-1] = '\0';
         char *p = strchr(res, 'D');
         if (p != NULL) {
@@ -63,7 +65,7 @@ uint16_t Servo_mode_get(uint8_t id){
     char cpos[2];
     memset(cpos,0,sizeof(cpos));
     sprintf(cpos,"%d",mode);  
-    HAL_UART_Transmit(&huart3,(uint8_t*)cpos,strlen(cpos),1000);
+    HAL_UART_Transmit(&huart3,(uint8_t*)cpos,strlen(cpos),TIMEOUT);
     return mode;
 }
 
@@ -79,9 +81,9 @@ void Servo_temp_and_v_get(uint8_t id,double _temp_v[2]){
         len = snprintf(cmd,sizeof(cmd),"#%03dPRTV!",id);
     }
     //HAL_UART_Transmit(&huart3,(uint8_t*)cmd,len,1000);
-    HAL_UART_Transmit(&huart2,(uint8_t*)cmd,len,1000);
+    HAL_UART_Transmit(&huart2,(uint8_t*)cmd,len,TIMEOUT);
     HAL_Delay(1);
-    if(HAL_UART_Receive(&huart2,(uint8_t*)res,11,1000) == HAL_OK){
+    if(HAL_UART_Receive(&huart2,(uint8_t*)res,11,TIMEOUT) == HAL_OK){
         res[sizeof(res)-1] = '\0';
         char *pV = strchr(res, '-');
         if(id == 0) pV = strchr(res, 'V');
@@ -101,7 +103,7 @@ void Servo_temp_and_v_get(uint8_t id,double _temp_v[2]){
     // memset(A,0,sizeof(A));
     // sprintf(A,"%04.0f %.1f",T,V);  
     // HAL_UART_Transmit(&huart3,(uint8_t*)A,strlen(A),1000);
-    HAL_UART_Transmit(&huart3,(uint8_t*)res,strlen(res),1000);
+    HAL_UART_Transmit(&huart3,(uint8_t*)res,strlen(res),TIMEOUT);
 #endif 
 }
 
@@ -109,9 +111,9 @@ void Servo_position_set(uint8_t id,uint16_t n,uint16_t t){
     if(id > SEVRO_NUMBER) return;
     char cmd[Servo_CMD_LEN];
     int len = snprintf(cmd,sizeof(cmd),"#%03dP%04dT%04d!",id,n,t);
-    HAL_UART_Transmit(&huart2,(uint8_t*)cmd,len,1000);
+    HAL_UART_Transmit(&huart2,(uint8_t*)cmd,len,TIMEOUT);
 #if DEBUG_MODE
-    HAL_UART_Transmit(&huart3,(uint8_t*)cmd,len,1000);
+    HAL_UART_Transmit(&huart3,(uint8_t*)cmd,len,TIMEOUT);
 #endif
 }
 
