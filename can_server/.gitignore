@@ -1,0 +1,4 @@
+/build/
+/patches/
+*.o
+*.a
