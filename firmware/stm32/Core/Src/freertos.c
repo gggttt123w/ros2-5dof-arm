@@ -77,7 +77,7 @@ osThreadId_t CAN_Tx_TaskHandle;
 const osThreadAttr_t CAN_Tx_Task_attributes = {
   .name = "CAN_Tx_Task",
   .stack_size = 512 * 4,
-  .priority = (osPriority_t) osPriorityHigh7,
+  .priority = (osPriority_t) osPriorityRealtime2,
 };
 /* Definitions for UART_Task */
 osThreadId_t UART_TaskHandle;
@@ -95,6 +95,11 @@ const osMessageQueueAttr_t CMD_Queue_attributes = {
 osMessageQueueId_t Status_QueueHandle;
 const osMessageQueueAttr_t Status_Queue_attributes = {
   .name = "Status_Queue"
+};
+/* Definitions for servo_rx_sem */
+osSemaphoreId_t servo_rx_semHandle;
+const osSemaphoreAttr_t servo_rx_sem_attributes = {
+  .name = "servo_rx_sem"
 };
 
 /* Private function prototypes -----------------------------------------------*/
@@ -124,8 +129,13 @@ void MX_FREERTOS_Init(void) {
   /* add mutexes, ... */
   /* USER CODE END RTOS_MUTEX */
 
+  /* Create the semaphores(s) */
+  /* creation of servo_rx_sem */
+  servo_rx_semHandle = osSemaphoreNew(1, 1, &servo_rx_sem_attributes);
+
   /* USER CODE BEGIN RTOS_SEMAPHORES */
   /* add semaphores, ... */
+  while (osSemaphoreAcquire(servo_rx_semHandle, 0) == osOK) { }
   /* USER CODE END RTOS_SEMAPHORES */
 
   /* USER CODE BEGIN RTOS_TIMERS */

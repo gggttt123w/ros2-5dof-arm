@@ -20,6 +20,7 @@
 #include "main.h"
 #include "cmsis_os.h"
 #include "can.h"
+#include "dma.h"
 #include "spi.h"
 #include "usart.h"
 #include "gpio.h"
@@ -94,12 +95,16 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
   MX_CAN1_Init();
   MX_USART3_UART_Init();
   MX_USART2_UART_Init();
   MX_SPI3_Init();
   /* USER CODE BEGIN 2 */
-  uint8_t can_ok = CAN_Init();
+  if (CAN_Init() != HAL_OK)
+  {
+      Error_Handler();
+  }
 
   robot_arm_init();
   HAL_Delay(2000);
