@@ -1,4 +1,4 @@
-<img width="400" height="225" alt="video_20261004_161734" src="https://github.com/user-attachments/assets/208acbea-bf12-454e-8abf-3b4c97e4cda3" /># 5-DOF Robotic Arm — RK3568 + STM32 异构控制系统（视觉模块暂未完成）
+# 5-DOF Robotic Arm — RK3568 + STM32 异构控制系统（视觉模块暂未完成）
 
 ![Uploading video_20261004_161734.gif…]()
 
