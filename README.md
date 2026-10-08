@@ -1,6 +1,12 @@
-# 5-DOF Robotic Arm — RK3568 + STM32 异构控制系统（视觉模块暂未完成）
+# 5-DOF Robotic Arm — RK3568 + STM32 异构控制系统
 
-![Uploading video_20261004_161734.gif…]()
+<div align="center">
+
+### RViz 实时跟随实机关节状态
+
+<img src="assets/robotarm.gif" width="760" alt="RViz 中的机械臂跟随实机">
+
+</div>
 
 基于 **RK3568（ROS 2 上位机）+ STM32F407（FreeRTOS 下位机）** 双处理器异构架构的五自由度机械臂 + 夹爪控制系统。
 两者经 **CAN 2.0B（250 kbps）** 互联，实现从 URDF 建模、运动学解算到实时舵机控制与可视化的完整链路。
@@ -86,35 +92,54 @@
 ## 目录结构
 
 ```
-.
-├── CMakeLists.txt              # ament_cmake 包定义
-├── package.xml                 # ROS 2 包描述
-├── main.cpp                    # can_test：不依赖 ROS 的 CAN 调试工具
+ros2-5dof-arm/
 │
-├── config/
-│   └── arm_params.yaml         # ★ 舵机↔关节映射、方向矩阵、轮询周期
-├── launch/
-│   └── arm_server.launch.py    # 加载参数并启动 arm_server
+├── can_server/                  # ★ ROS 2 包（CanServer）—— colcon 编译目标
+│   ├── CMakeLists.txt           #   ament_cmake 包定义
+│   ├── package.xml              #   ROS 2 包描述
+│   ├── main.cpp                 #   can_test：不依赖 ROS 的 CAN 调试工具
+│   ├── config/
+│   │   └── arm_params.yaml      #   ★ 舵机↔关节映射、方向矩阵、轮询周期
+│   ├── launch/
+│   │   └── arm_server.launch.py #   加载参数并启动节点
+│   ├── include/                 #   arm_can 库头文件
+│   │   ├── can_init.h           #     SocketCAN 封装
+│   │   ├── Servo_ctrl.h         #     舵机协议层
+│   │   ├── myqueue.h            #     单生产者单消费者环形缓冲
+│   │   └── app.h
+│   └── src/
+│       ├── arm_server_node.cpp  #   ★ ROS 2 节点主体
+│       ├── can_init.cpp         #     SocketCAN 封装
+│       ├── Servo_ctrl.cpp       #     舵机协议层：组帧 / 解析 / 状态缓存
+│       ├── myqueue.cpp
+│       └── app.cpp              #     早期线程示例（未参与节点）
 │
-├── include/  src/              # arm_can 库 + arm_server 节点
-│   ├── can_init.{h,cpp}        #   SocketCAN 封装
-│   ├── Servo_ctrl.{h,cpp}      #   舵机协议层：组帧 / 解析 / 状态缓存
-│   ├── myqueue.h               #   单生产者单消费者环形缓冲
-│   ├── app.cpp                 #   早期线程示例（未参与节点）
-│   └── arm_server_node.cpp     #   ★ ROS 2 节点主体
+├── firmware/stm32/              # STM32F407 固件（CubeMX + CMake）
+│   ├── Core/Src/robot_arm.c     #   ★ 舵机驱动 + DMA 收帧 + CAN 协议
+│   ├── Core/Src/freertos.c      #   任务创建
+│   ├── Core/Src/usart.c         #   USART2 半双工 + DMA
+│   ├── Drivers/                 #   STM32F4 HAL + CMSIS
+│   ├── Middlewares/             #   FreeRTOS（CMSIS-RTOS2）
+│   ├── MYWARE/aps6404/          #   PSRAM 驱动（预留）
+│   ├── cmake/                   #   交叉编译工具链文件
+│   ├── CMakePresets.json        #   Debug / Release 预设（Ninja 生成器）
+│   └── robot_arm.ioc            #   CubeMX 工程
 │
-├── can_server/                 # 上述源码的同步快照（由 push.sh 生成）
+├── assets/                      # README 图片资源
+│   └── robotarm.gif             #   RViz 跟随实机演示
 │
-├── firmware/stm32/             # STM32F407 固件（CubeMX + CMake）
-│   ├── Core/Src/robot_arm.c    #   ★ 舵机驱动 + DMA 收帧 + CAN 协议
-│   ├── Core/Src/freertos.c     #   任务创建
-│   ├── Core/Src/usart.c        #   USART2 半双工 + DMA
-│   ├── MYWARE/aps6404/         #   PSRAM 驱动（预留）
-│   └── robot_arm.ioc           #   CubeMX 工程
+├── patches/
+│   └── rockchip_canfd-fix-rx-stats.patch   # 内核 CAN 驱动修复（见下）
 │
-└── patches/
-    └── rockchip_canfd-fix-rx-stats.patch   # 内核 CAN 驱动修复（见下）
+└── push.sh                      # 源码同步脚本（根目录工作副本 → can_server/）
 ```
+
+> **为什么包在 `can_server/` 而不是根目录**：仓库要同时容纳 **ROS 2 上位机**和 **STM32 固件**两块，
+> 所以各自放在独立子目录。`colcon` 会**递归搜索 `package.xml`**，因此把整个仓库 clone 到
+> `~/ros2_ws/src/` 下就能正常编译，无需额外配置。
+>
+> 开发时在**仓库根目录**编辑源码，用 `push.sh` 同步到 `can_server/` 后提交 ——
+> 根目录的工作副本已被 `.gitignore` 排除，不会重复进仓库。
 
 ---
 
@@ -179,20 +204,23 @@
 ### 1. RK3568 侧
 
 ```bash
-# ① 配置 CAN（bitrate 每次上电都要设）
+# ① 配置 CAN（bitrate 每次上电都要重设，不会自动保存）
 sudo ip link set can0 type can bitrate 250000 triple-sampling on
 sudo ip link set can0 up
-# 等价：sudo ./push.sh 里用的也是这两条
 
 # ② 编译工作空间
 mkdir -p ~/ros2_ws/src && cd ~/ros2_ws/src
 git clone git@github.com:gggttt123w/ros2-5dof-arm.git
-cd ~/ros2_ws && colcon build --packages-select CanServer
+cd ~/ros2_ws
+colcon build                       # 递归找到 can_server/package.xml
 source install/setup.bash
 
 # ③ 启动节点
 ros2 launch CanServer arm_server.launch.py
 ```
+
+> `colcon` 会递归搜索 `package.xml`，所以包在 `can_server/` 子目录里也能正常编译。
+> 只想编这个包时可以加 `--packages-select CanServer`。
 
 **验证**：
 
@@ -204,16 +232,21 @@ ros2 topic echo /joint_states --once
 **不依赖 ROS 的调试工具**：
 
 ```bash
-./build/CanServer/can_test         # 直接读写 CAN，用来排除 ROS 层问题
+ros2 run CanServer can_test        # 直接读写 CAN，用来排除 ROS 层问题
+# 或直接跑构建产物：./build/CanServer/can_test
 ```
 
 ### 2. STM32 侧
 
+**依赖**：`cmake`（≥ 3.20）、`ninja`、`arm-none-eabi-gcc`
+（工具链文件：`firmware/stm32/cmake/gcc-arm-none-eabi.cmake`；预设用的是 **Ninja** 生成器）
+
 ```bash
 cd firmware/stm32
-cmake --preset Debug
+cmake --preset Debug            # 预设名：Debug / Release
 cmake --build build/Debug
-# 用 STM32CubeProgrammer / openocd 烧录 build/Debug/*.elf
+# 产物：build/Debug/*.elf / *.bin
+# 烧录：STM32CubeProgrammer，或 openocd -f openocd.cfg
 ```
 
 ### 3. 上位机发指令（可选）
@@ -408,6 +441,51 @@ cf->can_id |= CAN_ERR_BUSOFF;      /* ← skb 为 NULL 时解引用空指针 */
 
 > 影响：CAN 总线进入 error-passive / bus-off 状态时，内核可能因空指针解引用而崩溃 ——
 > 对无人值守的机械臂控制器是致命的。
+
+---
+
+## 已知问题 / TODO
+
+### 待修复
+
+**⚠️ 仓库组织（修好后请删除本块）**
+
+- [ ] **`can_server/` 缺 `package.xml`** —— `push.sh` 的 `SRC` 数组没包含它，
+      新克隆的仓库会因找不到 `package.xml` 而 `colcon build` 失败
+- [ ] **`can_server/` 缺 `config/`** —— 同上，`SRC` 需包含 `config`，
+      否则 `ros2 launch` 找不到 `arm_params.yaml`
+- [ ] **`patches/` 被 `.gitignore` 忽略** —— 内核补丁未进仓库（「关键技术点 ⑤」引用了它）
+- [ ] **`assets/` 未提交** —— 顶部演示图显示不出来
+
+**代码层面**
+
+- [ ] `package.xml` 的包名 `CanServer` 是大写，ROS 2 规范要求小写
+- [ ] `can_init.cpp` 的 `Can_Write` 发送未初始化的 `struct can_frame`，应改为 `{}` 零初始化
+- [ ] `can_init.cpp` 的 `bind` / `setsockopt` 返回值未检查
+- [ ] `Servo_ctrl.cpp` 的 `Info_wait` 未过滤 `CAN_ERR_FLAG` —— `CAN_ERR_CNT(0x200)` 与
+      业务 ID `GETANGLE(0x200)` 在 `CAN_SFF_MASK` 下冲突，错误帧会被误认为状态帧
+
+### 优化方向
+
+- [ ] 固件增加「一次查询全部舵机」的 CAN 命令 → 轮询周期可从 300 ms 压到约 150 ms
+- [ ] 两个手指关节（`gripper_finger_left/right_joint`）目前在桥接层展开，建议节点直接发布
+- [ ] `angle_max[5]` 仍是 `0.5`（夹爪舵机行程），与 URDF 的 `0.02 m` 不一致，靠桥接层缩放兜底
+
+---
+
+## 视觉模块
+
+**（开发中，尚未完成）**
+
+计划中的视觉抓取链路：
+
+```
+USB 摄像头 → OpenCV 目标检测 → 相机标定 + 手眼标定
+          → 像素坐标 → 机械臂基座坐标 → 逆解生成抓取位姿
+          → 张爪 → 移动 → 闭合 → 抬起
+```
+
+当前状态：**运动学解算、实时控制、可视化三段已跑通**；视觉段尚未接入。
 
 ---
 
