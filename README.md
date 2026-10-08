@@ -409,26 +409,6 @@ cf->can_id |= CAN_ERR_BUSOFF;      /* ← skb 为 NULL 时解引用空指针 */
 
 ---
 
-## 已知问题 / TODO
-
-### 待修复
-
-- [ ] **`push.sh` 的 `SRC` 数组漏了 `config`** —— 导致 `can_server/config/` 从未被提交，
-      新克隆的仓库找不到 `arm_params.yaml`，`ros2 launch` 会失败
-- [ ] `package.xml` 的包名 `CanServer` 是大写，ROS 2 规范要求小写
-- [ ] `can_init.cpp` 的 `Can_Write` 发送未初始化的 `struct can_frame`，应改为 `{}` 零初始化
-- [ ] `can_init.cpp` 的 `bind` / `setsockopt` 返回值未检查
-- [ ] `Servo_ctrl.cpp` 的 `Info_wait` 未过滤 `CAN_ERR_FLAG` —— `CAN_ERR_CNT(0x200)` 与
-      业务 ID `GETANGLE(0x200)` 在 `CAN_SFF_MASK` 下冲突，错误帧会被误认为状态帧
-
-### 优化方向
-
-- [ ] 固件增加「一次查询全部舵机」的 CAN 命令 → 轮询周期可从 300 ms 压到约 150 ms
-- [ ] 两个手指关节（`gripper_finger_left/right_joint`）目前在桥接层展开，建议节点直接发布
-- [ ] `angle_max[5]` 仍是 `0.5`（夹爪舵机行程），与 URDF 的 `0.02 m` 不一致，靠桥接层缩放兜底
-
----
-
 ## License
 
 [MIT](LICENSE) © 2026 yyyyjml23333
