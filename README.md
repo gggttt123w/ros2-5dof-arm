@@ -1,8 +1,6 @@
 <img width="400" height="225" alt="video_20261004_161734" src="https://github.com/user-attachments/assets/208acbea-bf12-454e-8abf-3b4c97e4cda3" /># 5-DOF Robotic Arm — RK3568 + STM32 异构控制系统（视觉模块暂未完成）
 
-
-<img src="C:\Users\sov\Downloads\video_20261004_161734.gif" width="400" alt="RViz 中的机械臂跟随实机">
-
+![Uploading video_20261004_161734.gif…]()
 
 基于 **RK3568（ROS 2 上位机）+ STM32F407（FreeRTOS 下位机）** 双处理器异构架构的五自由度机械臂 + 夹爪控制系统。
 两者经 **CAN 2.0B（250 kbps）** 互联，实现从 URDF 建模、运动学解算到实时舵机控制与可视化的完整链路。
