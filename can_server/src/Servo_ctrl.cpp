@@ -65,8 +65,13 @@ bool ServoCtrl_object::PositionAndStatue_queryall(uint8_t id,uint16_t pos,uint16
 bool ServoCtrl_object::Info_wait(uint16_t time_ms){
     struct can_frame frame;
     if(can.Can_Read(frame,time_ms) == false){
-        std::cout << can.Can_geterr() << std::endl;
-        err_ = "Info_wait : CanERROR!";
+        const std::string e = can.Can_geterr();
+        /* "Time out" 是正常的：100ms 窗口 vs 200ms 轮询周期，
+           一半的调用本来就没数据。只有真错误才值得打。 */
+        if(e.find("Time out") == std::string::npos){
+            std::cout << e << std::endl;
+        }
+        err_ = e;
         return false;
     }
     if((frame.can_id & CAN_SFF_MASK) != GETANGLE){
@@ -82,17 +87,24 @@ bool ServoCtrl_object::Info_wait(uint16_t time_ms){
         err_ = "Info_wait : id ERROR!";
         return false;
     }
-    Info[id].id = id;
-    Info[id].position = (uint16_t)(frame.data[1] | (frame.data[2] << 8));
-    Info[id].temperature = frame.data[3];
-    Info[id].volt = frame.data[4];
+    ServoStatus tmp{};
+    tmp.id = id;
+    tmp.position = (uint16_t)(frame.data[1] | (frame.data[2] << 8));
+    tmp.temperature = frame.data[3];
+    tmp.volt = frame.data[4];
+    {
+        std::lock_guard<std::mutex> lock(mtx_);
+        Info[id] = tmp;
+    }
     return true;
 }
 
 ServoStatus ServoCtrl_object::Read_Info(uint8_t id){
-    return Info[id];
+    std::lock_guard<std::mutex> lk(mtx_);
+    return (id < SERVONUMBER) ? Info[id] : ServoStatus{};
 }
 
 std::string ServoCtrl_object::Servo_errget(void){
     return err_;
 }
+

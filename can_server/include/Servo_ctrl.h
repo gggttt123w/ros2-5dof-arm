@@ -5,6 +5,7 @@
 #include "can_init.h"
 #include <cerrno>
 #include <atomic>
+#include <mutex>
 
 #define ASKFORSETPOS 1
 #define ASKFORSTATUS 2
@@ -22,6 +23,7 @@ class Cansocket_object;
 class ServoCtrl_object{
     private:
         Cansocket_object& can;
+        mutable std::mutex mtx_;
         std::array<ServoStatus,SERVONUMBER> Info{};
         std::string err_;
     public:
@@ -35,5 +37,7 @@ class ServoCtrl_object{
         ServoStatus Read_Info(uint8_t id);
 
         std::string Servo_errget(void);
+
+        void Snapshot(ServoStatus out[SERVONUMBER]) const; 
     
 };
