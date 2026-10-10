@@ -1,7 +1,0 @@
-<library path="arm_system_hardware">
-  <class name="CanServer/ArmSystemHardware"
-         type="arm_hardware::ArmSystemHardware"
-         base_class_type="hardware_interface::SystemInterface">
-    <description>CAN bus hardware interface for the 5-DOF arm (reuses arm_can)</description>
-  </class>
-</library>

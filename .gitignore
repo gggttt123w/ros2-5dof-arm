@@ -14,3 +14,11 @@ log/
 mx.scratch
 .settings/
 !.settings/CMakeLists.txt
+# ── 根目录的包清单（进仓库的是 can_server/ 下的镜像）──
+/CMakeLists.txt
+/package.xml
+/arm_system_hardware.xml
+
+# ── IDE ──
+.vscode/
+.idea/
