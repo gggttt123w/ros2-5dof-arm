@@ -12,11 +12,65 @@
 #define Servo_CMD_LEN 16
 #define SERVO_RX_BUF 48
 
+typedef struct {
+    uint16_t pos;
+    double   temp;      /* 口径和 Servo_temp_and_v_get 保持一致 */
+    double   volt;
+    uint8_t  valid;     /* bit0=pos 有效, bit1=temp/volt 有效 */
+} ServoCache_t;
 
+static ServoCache_t g_cache[SEVRO_NUMBER + 1];
 
 extern osSemaphoreId_t servo_rx_semHandle;
 uint8_t servo_rx_buf[SERVO_RX_BUF];
 volatile uint16_t servo_rx_len = 0;
+
+static ServoCache_t g_cache[SEVRO_NUMBER + 1];   /* 下标 = 舵机 id (0..5) */
+
+static void cache_put_pos(uint8_t id, uint16_t pos)
+{
+    if (id > SEVRO_NUMBER) return;
+    g_cache[id].pos   = pos;
+    g_cache[id].valid |= 0x01;
+}
+
+static void cache_put_tv(uint8_t id, double temp, double volt)
+{
+    if (id > SEVRO_NUMBER) return;
+    g_cache[id].temp  = temp;
+    g_cache[id].volt  = volt;
+    g_cache[id].valid |= 0x02;
+}
+
+/* ★ 这就是那个「我编出来的」函数，现在给它真的实现 */
+void Servo_cached_get(uint8_t id, double temp_v[2], uint16_t *pos)
+{
+    if (id > SEVRO_NUMBER) return;
+    if (temp_v) { temp_v[0] = g_cache[id].temp; temp_v[1] = g_cache[id].volt; }
+    if (pos)    { *pos      = g_cache[id].pos;  }
+}
+
+uint8_t Servo_cache_valid(uint8_t id)
+{
+    return (id <= SEVRO_NUMBER) ? g_cache[id].valid : 0;
+}
+
+/* 上电初始化：把 6 个舵机各读一遍，填满缓存
+ * （必须在 UART_task 起来之前或刚开始时调用一次，
+ *   否则第一次静默期内缓存是空的，位置会报 0） */
+void Servo_cache_init(void)
+{
+    memset(g_cache, 0, sizeof(g_cache));
+    for (uint8_t i = 0; i <= SEVRO_NUMBER; i++)
+    {
+        uint16_t p = Servo_position_get(i);
+        double   tv[2] = {0.0, 0.0};
+        Servo_temp_and_v_get(i, tv);
+        cache_put_pos(i, p);
+        cache_put_tv(i, tv[0], tv[1]);
+        osDelay(30);          /* 别把舵机总线打爆 */
+    }
+}
 
 static uint16_t servo_send_recv(const char *cmd, int len, uint32_t time_ms)
 {
@@ -84,6 +138,7 @@ uint16_t Servo_position_get(uint8_t id){
         char *p = strchr((char*)servo_rx_buf, 'P');
         if (p != NULL) {
             position = (uint16_t)atoi(p + 1);
+            cache_put_pos(id, position);
         }
     }
 #if DEBUG_MODE
@@ -141,6 +196,7 @@ void Servo_temp_and_v_get(uint8_t id,double _temp_v[2]){
         if(pV != NULL){
             _temp_v[1] = (double)atof(pV + 1);
         }
+        cache_put_tv(id, _temp_v[0], _temp_v[1]);
     }
 #if DEBUG_MODE
     char dbg[16];

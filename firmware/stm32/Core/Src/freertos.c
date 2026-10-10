@@ -283,6 +283,11 @@ void CAN_Tx_task(void *argument)
 }
 
 /* USER CODE BEGIN Header_UART_task */
+#define SEVRO_NUMBER 5
+
+static uint8_t  temp_div = 0;
+static double   last_temp[SEVRO_NUMBER + 1] = {0};
+static double   last_volt[SEVRO_NUMBER + 1] = {0};
 /**
 * @brief Function implementing the UART_Task thread.
 * @param argument: Not used
@@ -296,6 +301,8 @@ void UART_task(void *argument)
   CmdMsg_t cmd;
   double _temp_v[2];
   memset(_temp_v,0,sizeof(_temp_v));
+  static uint32_t quiet_until = 0;
+  Servo_cache_init();
   /* Infinite loop */
   for(;;)
   {
@@ -303,23 +310,46 @@ void UART_task(void *argument)
       switch(cmd.ask){
         case ASKFORSETPOS:{
           Servo_position_set(cmd.id,cmd.target_pos,cmd.time);
+          quiet_until = osKernelGetTickCount() + 300U;
           break;
         }
         case ASKFORSTATUS:{
-          st->id = cmd.id;
-          Servo_temp_and_v_get(cmd.id,_temp_v);
-          st->temp = _temp_v[0];
-          st->volt = _temp_v[1];
-          st->cur_pos = Servo_position_get(cmd.id);
-          osMessageQueuePut(Status_QueueHandle,st,0,0);
-          break;
+            st->id = cmd.id;
+
+            if ((int32_t)(quiet_until - osKernelGetTickCount()) > 0) {
+                uint16_t p = 0;
+                Servo_cached_get(cmd.id, _temp_v, &p);
+                st->cur_pos = p;
+                st->temp    = _temp_v[0];
+                st->volt    = _temp_v[1];
+            } else {
+                /* 位置每次都读（只要 ~5ms） */
+                st->cur_pos = Servo_position_get(cmd.id);
+
+                /* ★ 温度/电压每 20 次才读一次（各 ~5ms，省下 90% 阻塞） */
+                if (++temp_div >= 20) {
+                    temp_div = 0;
+                    Servo_temp_and_v_get(cmd.id, _temp_v);
+                    last_temp[cmd.id] = _temp_v[0];
+                    last_volt[cmd.id] = _temp_v[1];
+                }
+                st->temp = last_temp[cmd.id];
+                st->volt = last_volt[cmd.id];
+            }
+
+            osMessageQueuePut(Status_QueueHandle, st, 0, 0);
+            break;
         }
         case ASKFORALL:{
           Servo_position_set(cmd.id,cmd.target_pos,cmd.time);
-          Servo_temp_and_v_get(cmd.id,_temp_v);
-          st->temp = _temp_v[0];
-          st->volt = _temp_v[1];
-          st->cur_pos = Servo_position_get(cmd.id);
+          quiet_until = osKernelGetTickCount() + 300U; 
+          {
+            uint16_t p = 0;
+            Servo_cached_get(cmd.id, _temp_v, &p);
+            st->temp    = _temp_v[0];
+            st->volt    = _temp_v[1];
+            st->cur_pos = p;
+          }
           osMessageQueuePut(Status_QueueHandle,st,0,0);
           break;
         }

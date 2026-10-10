@@ -16,6 +16,9 @@ void Servo_position_set(uint8_t id,uint16_t n,uint16_t t);
 
 void Servo_temp_and_v_get(uint8_t id,double _temp_v[2]);
 //CAN通讯
+void Servo_cache_init(void);
+void Servo_cached_get(uint8_t id, double temp_v[2], uint16_t *pos);
+uint8_t Servo_cache_valid(uint8_t id);
 
 #define GETANGLE 0x200
 #define GETTANDV 0x201
