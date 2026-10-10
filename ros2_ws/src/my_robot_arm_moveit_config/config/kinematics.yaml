@@ -1,0 +1,25 @@
+# IK 求解器配置
+#
+# ★ 用自研的解析逆解插件，不用 KDL。
+#
+#   为什么不用 KDL：
+#     KDL 是 6 自由度【数值】解。本机械臂只有 5 个转动关节，
+#     雅可比是 6x5（欠定），从随机种子出发无法收敛。
+#     MoveIt 的目标采样器正是用随机种子调 IK，所以报：
+#         RRTConnect.cpp: Unable to sample any valid states for goal tree
+#     调大 timeout/attempts 也没用。
+#
+#   本插件（arm_ik_plugin）：
+#     位置逆解 = 底座 yaw（joint1）+ 平面 2R（joint2/3）闭式求解，
+#     腕部冗余角 a4 扫描 + 肘部双构型 + 关节限位筛选 + 正解自校验。
+#     只保证【位置 (x,y,z)】—— 这正是 5-DOF 能完全控制的部分。
+
+arm:
+  kinematics_solver: arm_ik_plugin/ArmAnalyticIKPlugin
+  kinematics_solver_search_resolution: 0.005
+  kinematics_solver_timeout: 0.05
+  kinematics_solver_attempts: 3
+
+# 夹爪是单个棱柱关节，用关节空间目标就够，不需要 IK 求解器。
+# （如果在这里给 gripper 配 kinematics_solver，move_group 会尝试加载它，
+#   而本插件是按 5 关节机械臂设计的，只会刷一堆告警。）

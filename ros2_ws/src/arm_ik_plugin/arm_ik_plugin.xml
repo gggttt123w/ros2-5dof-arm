@@ -1,0 +1,12 @@
+<library path="arm_ik_plugin">
+  <class name="arm_ik_plugin/ArmAnalyticIKPlugin"
+         type="arm_ik_plugin::ArmAnalyticIKPlugin"
+         base_class_type="kinematics::KinematicsBase">
+    <description>
+      5 自由度机械臂的解析逆解插件。
+      位置逆解用「底座 yaw + 平面 2R」闭式求解，腕部冗余角扫描 +
+      肘部双构型 + 关节限位筛选 + 正解自校验。
+      解决 KDL（6-DOF 数值解）在本机械臂上无法收敛的问题。
+    </description>
+  </class>
+</library>

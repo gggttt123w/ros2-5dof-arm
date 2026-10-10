@@ -1,0 +1,66 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!--
+    关节顺序 = <param> 数组顺序 = 舵机 id 顺序，必须一致！
+    硬件插件按 info_.joints 的下标去索引这些数组。
+  -->
+  <ros2_control name="MyRobotArm" type="system">
+    <hardware>
+      <plugin>CanServer/ArmSystemHardware</plugin>
+
+      <param name="can_interface">can0</param>
+      <!-- cmd_time_ms 只是兜底值；正常运行时插件用控制周期作为舵机到位时间 -->
+      <param name="cmd_time_ms">150</param>
+      <!-- 每 2 个控制周期查一个舵机 = 240ms 全轴刷新一轮（50Hz 下） -->
+      <!-- 每 3 个控制周期查一个舵机 = 360ms 全轴刷新一轮。
+           之前取 1 虽然反馈快，但 50 次查询 + 50 次下发 = 100 帧 CAN/秒，
+           STM32 的 UART 任务会积压，命令成批发出 → 也会卡。 -->
+      <param name="poll_div">3</param>
+      <!-- ★ 每 5 个控制周期下发一次 CAN（≈100ms），T 跟随该间隔。
+           舵机会走完完整行程，而不是每 20ms 被打断一次。
+           调大更顺滑但跟随更滞后；调小跟得准但会卡。 -->
+      <param name="send_div">5</param>
+      <param name="servo_ids">0,1,2,3,4,5</param>
+      <param name="servo_min">500,500,500,500,500,0</param>
+      <param name="servo_max">2500,2500,2500,2500,2500,2000</param>
+
+      <!-- ★ 注意：这里从「角度」改成「位置」，夹爪是直线（米）不是角度 -->
+      <param name="pos_min">-1.5708,-1.5708,-1.5708,-1.5708,-3.1416,0.0</param>
+      <param name="pos_max">1.5708,1.5708,1.5708,1.5708,3.1416,0.020</param>
+
+      <param name="dir">1.0,1.0,-1.0,-1.0,1.0,-1.0</param>
+    </hardware>
+
+    <joint name="joint1">
+      <command_interface name="position"/>
+      <state_interface name="position"/>
+    </joint>
+    <joint name="joint2">
+      <command_interface name="position"/>
+      <state_interface name="position"/>
+    </joint>
+    <joint name="joint3">
+      <command_interface name="position"/>
+      <state_interface name="position"/>
+    </joint>
+    <joint name="joint4">
+      <command_interface name="position"/>
+      <state_interface name="position"/>
+    </joint>
+    <joint name="joint5">
+      <command_interface name="position"/>
+      <state_interface name="position"/>
+    </joint>
+
+    <!-- 夹爪：只暴露左指。右指是 mimic，由 MoveIt/Gazebo 层面处理，不占接口 -->
+    <joint name="gripper_finger_left_joint">
+      <command_interface name="position"/>
+      <state_interface name="position"/>
+    </joint>
+  </ros2_control>
+
+</robot>
+
+
+

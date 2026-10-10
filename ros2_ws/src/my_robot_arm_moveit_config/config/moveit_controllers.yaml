@@ -1,0 +1,37 @@
+# ★★★ 把 MoveIt2 接到已经跑通的 ros2_control 链路上 ★★★
+#
+#   MoveIt2 规划完 → 把 JointTrajectory 发给对应控制器
+#                              ↓
+#                  已经验证过的那条链路（CAN → STM32 → 舵机）
+#
+# 【硬件层一行都不用改】
+#
+# ⚠️ 这里列的每个控制器都必须【有完整定义】，否则 move_group 报：
+#       No action namespace specified for controller `xxx`
+
+moveit_controller_manager: moveit_simple_controller_manager/MoveItSimpleControllerManager
+
+moveit_simple_controller_manager:
+  controller_names:
+    - arm_controller
+    - gripper_controller
+
+  # 组 arm：joint1~joint5
+  arm_controller:
+    type: FollowJointTrajectory
+    action_ns: follow_joint_trajectory
+    default: true
+    joints:
+      - joint1
+      - joint2
+      - joint3
+      - joint4
+      - joint5
+
+  # 组 gripper：只有主动的那个手指（右指是 mimic）
+  gripper_controller:
+    type: FollowJointTrajectory
+    action_ns: follow_joint_trajectory
+    default: true
+    joints:
+      - gripper_finger_left_joint

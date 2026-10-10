@@ -1,0 +1,82 @@
+# OMPL 规划器配置（ROS 2 Jazzy 格式）
+#
+# ⚠️⚠️ 格式坑（踩过一次，move_group 直接 abort）⚠️⚠️
+#   Jazzy 的 PlanningPipeline 构造函数对下面这三个参数调用
+#   rclcpp::Parameter::as_string_array()，所以【必须是 YAML 序列】：
+#       planning_plugins / request_adapters / response_adapters
+#
+#   用 ROS 1 风格的折叠字符串（request_adapters: >- ...）会抛
+#   rclcpp::ParameterTypeException → std::terminate → move_group abort
+#   报错长这样：
+#       MoveItCpp::loadPlanningPipelines → PlanningPipeline::PlanningPipeline
+#       → rclcpp::Parameter::as_string_array() → std::terminate
+#
+#   另外：planning_plugin（单数）是旧名，Jazzy 用 planning_plugins（复数）。
+#
+# RK3568 是 4× Cortex-A55，算力有限。
+# RRTConnect 比 RRT* / PRM 快得多，5-DOF 场景够用。
+
+planning_plugins:
+  - ompl_interface/OMPLPlanner
+
+# ── 规划请求适配器（按顺序执行）──
+#    这些在规划【之前】检查/修正起始状态。
+#    ⚠️ Jazzy 的名字和旧版不同：
+#       旧: FixWorkspaceBounds        → 新: ValidateWorkspaceBounds
+#       旧: FixStartStateBounds       → 新: CheckStartStateBounds
+#       旧: FixStartStateCollision    → 新: CheckStartStateCollision
+request_adapters:
+  - default_planning_request_adapters/ResolveConstraintFrames
+  - default_planning_request_adapters/ValidateWorkspaceBounds
+  - default_planning_request_adapters/CheckStartStateBounds
+  - default_planning_request_adapters/CheckStartStateCollision
+  - default_planning_request_adapters/CheckForStackedConstraints
+
+# ── 规划响应适配器（按顺序执行）──
+#    ★ AddRuckigTrajectorySmoothing 让轨迹「丝滑」★
+#      它在时间参数化之后再补一次加加速度(jerk)受限的平滑，
+#      舵机走起来不会有突兀的启停。
+#      如果它导致规划失败（需要 ruckig 库），删掉这一行即可，
+#      保留 AddTimeOptimalParameterization 也能用。
+response_adapters:
+  - default_planning_response_adapters/AddTimeOptimalParameterization
+  # ★ 让轨迹「丝滑」的关键：
+  #   AddTimeOptimalParameterization 只是时间最优（加速度 bang-bang，起停突兀），
+  #   Ruckig 再补一次【加加速度 jerk 受限】的平滑，舵机走起来没有硬启停。
+  #   ⚠️ Ruckig 需要 joint_limits.yaml 里有加速度和 jerk 限制，缺了会报：
+  #        Ruckig error: -100 / extended the trajectory duration to its maximum
+  #      并把整条规划判为 FAILURE。
+  - default_planning_response_adapters/AddRuckigTrajectorySmoothing
+  - default_planning_response_adapters/ValidateSolution
+  - default_planning_response_adapters/DisplayMotionPath
+
+# ══════════════════════════════════════════════════════════════
+# 规划器
+# ══════════════════════════════════════════════════════════════
+planner_configs:
+  RRTConnect:
+    type: geometric::RRTConnect
+    range: 0.0            # 0.0 = 由 setup() 自动决定
+  RRT:
+    type: geometric::RRT
+    range: 0.0
+    goal_bias: 0.05
+  PRM:
+    type: geometric::PRM
+    max_nearest_neighbors: 10
+
+arm:
+  default_planner_config: RRTConnect
+  planner_configs:
+    - RRTConnect
+    - RRT
+    - PRM
+  # 碰撞检测步长（关节空间比例）。
+  # 调小 → 检查更细、路径更稳，但更慢。A55 上 0.05 是合理折中。
+  longest_valid_segment_fraction: 0.05
+
+gripper:
+  default_planner_config: RRTConnect
+  planner_configs:
+    - RRTConnect
+  longest_valid_segment_fraction: 0.05

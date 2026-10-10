@@ -1,0 +1,101 @@
+# ros2_control 控制器配置
+#
+# ⚠️ 关键：控制器负责的关节集合必须和 MoveIt2 的【规划组】一致！
+#
+#   之前 arm_controller 管 6 个关节（含夹爪），但 MoveIt 只为 `arm` 组
+#   （joint1~joint5）规划，发出的轨迹只有 5 个关节 —— 而
+#   joint_trajectory_controller 的 allow_partial_joints_goal 默认 false，
+#   于是直接拒绝：
+#       Goal request rejected / Goal was rejected by server
+#
+#   现在按 SRDF 的规划组拆开：
+#       arm_controller      ← 组 arm       (joint1~joint5)
+#       gripper_controller  ← 组 gripper   (gripper_finger_left_joint)
+
+controller_manager:
+  ros__parameters:
+    update_rate: 50              # Hz → 20ms 控制周期
+
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+    arm_controller:
+      type: joint_trajectory_controller/JointTrajectoryController
+
+    gripper_controller:
+      type: joint_trajectory_controller/JointTrajectoryController
+
+# ══════════════════════════════════════════════════════════════
+arm_controller:
+  ros__parameters:
+    joints:
+      - joint1
+      - joint2
+      - joint3
+      - joint4
+      - joint5
+
+    command_interfaces:
+      - position
+    state_interfaces:
+      - position
+
+    # ★★★ 必须开环 ★★★
+    #
+    #   为什么：舵机是半双工总线，运动期间【不能查询】（查询会打断行程，
+    #   见 ArmSystemHardware::read() 的注释）。所以运动期间报给 JTC 的是
+    #   【命令值】而不是真实位置 —— 闭环容差检查就失去意义了。
+    #
+    #   再加上控制循环偶发 overrun（实测有一次 91ms / 丢5周期），
+    #   真实状态会瞬时落后轨迹一小段，闭环检查必然误报：
+    #       State tolerances failed for joint 0:
+    #       Position Error: -1.092183, Position Tolerance: 1.000000
+    #       arm_controller: Aborted due to state tolerance violation
+    #
+    #   注：Jazzy 里 open_loop_control 已标记 deprecated，而且实测打开
+    #   也拦不住 tolerance 报错（报错来自 stop 后的状态跳变，不是闭环引起的）。
+    #   真正修掉跳变的是 ArmSystemHardware::read() —— 它会在运动停止的
+    #   第一拍把 6 个舵机全部查一遍，冲掉运动期间过期的缓存。
+    open_loop_control: false
+    allow_partial_joints_goal: false
+    allow_nonzero_velocity_at_trajectory_end: false
+
+    # ⚠️ 容差要和「状态反馈延迟」匹配：
+    #   read() 轮询周期 = poll_div × update_rate ≈ 240ms
+    #   轨迹 50Hz 下发，实际位置天然滞后；设太严会一直报
+    #   PATH_TOLERANCE_VIOLATED(-4)
+    # ⚠️ 容差必须容忍「状态反馈延迟」：
+    #   read() 是轮询的，全轴刷新一圈 = poll_div × 关节数 × 控制周期
+    #   poll_div=1 时约 120ms；轨迹 50Hz 下发，实际位置天然滞后
+    #   容差设太严会偶发 PATH_TOLERANCE_VIOLATED(-4)
+    #
+    #   这几个值看起来很大，但对「舵机 + 240ms 级反馈」是必要的：
+    #   舵机本身的机械滞后 + 卫星式轮询，本来就跟不紧高动态轨迹。
+    constraints:
+      stopped_velocity_tolerance: 0.10
+      goal_time: 3.0
+      joint1: {trajectory: 1.0, goal: 0.5}
+      joint2: {trajectory: 1.0, goal: 0.5}
+      joint3: {trajectory: 1.0, goal: 0.5}
+      joint4: {trajectory: 1.0, goal: 0.5}
+      joint5: {trajectory: 1.0, goal: 0.5}
+
+# ══════════════════════════════════════════════════════════════
+gripper_controller:
+  ros__parameters:
+    joints:
+      - gripper_finger_left_joint
+
+    command_interfaces:
+      - position
+    state_interfaces:
+      - position
+
+    open_loop_control: false         # 同上：Jazzy 已废弃该参数
+    allow_partial_joints_goal: false
+
+    constraints:
+      stopped_velocity_tolerance: 0.01
+      goal_time: 1.0
+      # 夹爪实测停在 0.005 附近（机械结构限制），goal 容差要 > 0.005
+      gripper_finger_left_joint: {trajectory: 0.010, goal: 0.008}

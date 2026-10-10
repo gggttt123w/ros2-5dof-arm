@@ -1,0 +1,318 @@
+<?xml version="1.0"?>
+<!--
+  my_robot_arm —— 5 自由度机械臂 + 夹爪
+
+  运动链（单位 m，全部来自实测）：
+    底面 ──64.5mm──> j1(回转) ──8mm──> j2(俯仰) ──98.5mm──> j3(俯仰)
+         ──95mm──> j4(俯仰) ──68.5mm──> j5(腕部自转) ──30mm──> j6(夹爪舵机节点)
+         ──40mm──> 夹爪本体 ──47mm──> 夹爪闭合最高点（距 j5 共 117mm）
+
+  截面尺寸：X(侧视进深) 25.2mm × Y(沿俯仰关节轴) 57.6mm
+
+  自由度：j1~j5 为 5 个转动关节，夹爪开合为第 6 个驱动（右指 mimic 左指）。
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="my_robot_arm">
+
+  <!-- ================= 实测尺寸参数 ================= -->
+  <xacro:property name="base_height" value="0.0645"/>  <!-- 底面 -> j1 轴线 -->
+  <xacro:property name="j1_j2"       value="0.008"/>   <!-- j1 轴线 -> j2 轴线 -->
+  <xacro:property name="link2_len"   value="0.0985"/>  <!-- j2 -> j3，大臂 -->
+  <xacro:property name="link3_len"   value="0.0950"/>  <!-- j3 -> j4，小臂 -->
+  <xacro:property name="link4_len"   value="0.0685"/>  <!-- j4 -> j5，腕部 -->
+  <xacro:property name="j5_j6"       value="0.0300"/>  <!-- j5 -> j6，舵机连接节点 -->
+  <xacro:property name="gripper_top" value="0.1170"/>  <!-- j5 -> 夹爪完全闭合时的最高点 -->
+
+  <!-- ============ 关节截面尺寸（实测） ============ -->
+  <!-- X = 侧视方向的进深（臂弯曲平面内）；Y = 沿各俯仰关节旋转轴的宽度 -->
+  <xacro:property name="joint_depth" value="0.0252"/>  <!-- 侧视方向 25.2mm -->
+  <xacro:property name="joint_width" value="0.0576"/>  <!-- Y 方向 57.6mm，关节平均宽度 -->
+
+  <!-- ============ 占位尺寸（用户未提供，按小型桌面臂估算，可直接改这里） ============ -->
+  <xacro:property name="base_radius"     value="0.045"/>   <!-- 底座半径 -->
+  <xacro:property name="j1_block_radius" value="0.0288"/>  <!-- j1->j2 转接块半径 = 关节宽度/2 -->
+  <xacro:property name="connector_r"     value="0.016"/>   <!-- j5->j6 连接段半径 -->
+  <xacro:property name="servo_len"       value="0.040"/>   <!-- 夹爪舵机本体高度 -->
+  <xacro:property name="servo_w"         value="0.040"/>   <!-- 舵机宽(x) -->
+  <xacro:property name="servo_d"         value="0.020"/>   <!-- 舵机厚(y) -->
+  <xacro:property name="finger_w"        value="0.030"/>   <!-- 手指宽(x) -->
+  <xacro:property name="finger_t"        value="0.008"/>   <!-- 手指厚(y) -->
+  <xacro:property name="finger_close_y"  value="0.004"/>   <!-- 闭合时手指中心 |y| -->
+  <xacro:property name="finger_travel"   value="0.020"/>   <!-- 单指最大行程（开口共 40mm） -->
+
+  <!-- 夹爪手指长度由「最高点」反推：j5->j6 + 舵机 + 手指 = 117mm -->
+  <xacro:property name="finger_len" value="${gripper_top - j5_j6 - servo_len}"/>
+
+  <!-- ================= 质量参数（占位，单位 kg） ================= -->
+  <xacro:property name="m_base"    value="0.60"/>
+  <xacro:property name="m_link1"   value="0.05"/>
+  <xacro:property name="m_link2"   value="0.16"/>
+  <xacro:property name="m_link3"   value="0.13"/>
+  <xacro:property name="m_link4"   value="0.08"/>
+  <xacro:property name="m_link5"   value="0.04"/>
+  <xacro:property name="m_servo"   value="0.06"/>
+  <xacro:property name="m_finger"  value="0.01"/>
+
+  <!-- ================= 关节参数 ================= -->
+  <xacro:property name="effort"   value="10.0"/>
+  <xacro:property name="velocity" value="3.0"/>
+
+  <!-- ================= 颜色 ================= -->
+  <material name="graphite"> <color rgba="0.22 0.22 0.25 1.0"/></material>
+  <material name="orange">   <color rgba="0.90 0.50 0.12 1.0"/></material>
+  <material name="amber">    <color rgba="0.86 0.62 0.20 1.0"/></material>
+  <material name="silver">   <color rgba="0.72 0.72 0.75 1.0"/></material>
+  <material name="dark">     <color rgba="0.14 0.14 0.16 1.0"/></material>
+  <material name="steel">    <color rgba="0.58 0.58 0.62 1.0"/></material>
+
+  <!-- ================= 惯量宏 ================= -->
+  <xacro:macro name="box_inertial" params="mass x y z zoff">
+    <inertial>
+      <origin xyz="0 0 ${zoff}" rpy="0 0 0"/>
+      <mass value="${mass}"/>
+      <inertia ixx="${mass*(y*y+z*z)/12.0}" ixy="0.0" ixz="0.0"
+               iyy="${mass*(x*x+z*z)/12.0}" iyz="0.0"
+               izz="${mass*(x*x+y*y)/12.0}"/>
+    </inertial>
+  </xacro:macro>
+
+  <xacro:macro name="cylinder_inertial" params="mass r h zoff">
+    <inertial>
+      <origin xyz="0 0 ${zoff}" rpy="0 0 0"/>
+      <mass value="${mass}"/>
+      <inertia ixx="${mass*(3.0*r*r+h*h)/12.0}" ixy="0.0" ixz="0.0"
+               iyy="${mass*(3.0*r*r+h*h)/12.0}" iyz="0.0"
+               izz="${mass*r*r/2.0}"/>
+    </inertial>
+  </xacro:macro>
+
+  <!-- ================================================================
+       base_footprint —— 虚拟根 link，与 base_link 重合。
+       KDL 不支持根 link 带惯量，加这个 dummy link 可消除该警告；
+       同时它也是导航/定位惯用的「地面投影」坐标系。
+       ================================================================ -->
+  <link name="base_footprint"/>
+  <joint name="base_footprint_joint" type="fixed">
+    <parent link="base_footprint"/>
+    <child link="base_link"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </joint>
+
+  <!-- ================================================================
+       base_link —— 底座，原点在地面，向上 64.5mm 到 j1
+       ================================================================ -->
+  <link name="base_link">
+    <visual>
+      <origin xyz="0 0 ${base_height/2}" rpy="0 0 0"/>
+      <geometry><cylinder radius="${base_radius}" length="${base_height}"/></geometry>
+      <material name="graphite"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 ${base_height/2}" rpy="0 0 0"/>
+      <geometry><cylinder radius="${base_radius}" length="${base_height}"/></geometry>
+    </collision>
+    <xacro:cylinder_inertial mass="${m_base}" r="${base_radius}" h="${base_height}" zoff="${base_height/2}"/>
+  </link>
+
+  <!-- j1：底座回转（绕竖直 Z 轴） -->
+  <joint name="joint1" type="revolute">
+    <parent link="base_link"/>
+    <child link="link1"/>
+    <origin xyz="0 0 ${base_height}" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <!-- 底盘总行程 180°，左右对称：-90° ~ +90° -->
+    <limit lower="-1.57079633" upper="1.57079633" effort="${effort}" velocity="${velocity}"/>
+    <dynamics damping="0.05" friction="0.02"/>
+  </joint>
+
+  <!-- ================================================================
+       link1 —— j1 到 j2 的转接块，8mm
+       ================================================================ -->
+  <link name="link1">
+    <visual>
+      <origin xyz="0 0 ${j1_j2/2}" rpy="0 0 0"/>
+      <geometry><cylinder radius="${j1_block_radius}" length="${j1_j2}"/></geometry>
+      <material name="dark"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 ${j1_j2/2}" rpy="0 0 0"/>
+      <geometry><cylinder radius="${j1_block_radius}" length="${j1_j2}"/></geometry>
+    </collision>
+    <xacro:cylinder_inertial mass="${m_link1}" r="${j1_block_radius}" h="${j1_j2}" zoff="${j1_j2/2}"/>
+  </link>
+
+  <!-- j2：肩部俯仰（绕水平 Y 轴） -->
+  <joint name="joint2" type="revolute">
+    <parent link="link1"/>
+    <child link="link2"/>
+    <origin xyz="0 0 ${j1_j2}" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-1.57079633" upper="1.57079633" effort="${effort}" velocity="${velocity}"/>
+    <dynamics damping="0.05" friction="0.02"/>
+  </joint>
+
+  <!-- ================================================================
+       link2 —— 大臂，98.5mm
+       ================================================================ -->
+  <link name="link2">
+    <visual>
+      <origin xyz="0 0 ${link2_len/2}" rpy="0 0 0"/>
+      <geometry><box size="${joint_depth} ${joint_width} ${link2_len}"/></geometry>
+      <material name="orange"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 ${link2_len/2}" rpy="0 0 0"/>
+      <geometry><box size="${joint_depth} ${joint_width} ${link2_len}"/></geometry>
+    </collision>
+    <xacro:box_inertial mass="${m_link2}" x="${joint_depth}" y="${joint_width}" z="${link2_len}" zoff="${link2_len/2}"/>
+  </link>
+
+  <!-- j3：肘部俯仰 -->
+  <joint name="joint3" type="revolute">
+    <parent link="link2"/>
+    <child link="link3"/>
+    <origin xyz="0 0 ${link2_len}" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <!-- 与 j2 行程相同：-90° ~ +90° -->
+    <limit lower="-1.57079633" upper="1.57079633" effort="${effort}" velocity="${velocity}"/>
+    <dynamics damping="0.05" friction="0.02"/>
+  </joint>
+
+  <!-- ================================================================
+       link3 —— 小臂，95mm
+       ================================================================ -->
+  <link name="link3">
+    <visual>
+      <origin xyz="0 0 ${link3_len/2}" rpy="0 0 0"/>
+      <geometry><box size="${joint_depth} ${joint_width} ${link3_len}"/></geometry>
+      <material name="amber"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 ${link3_len/2}" rpy="0 0 0"/>
+      <geometry><box size="${joint_depth} ${joint_width} ${link3_len}"/></geometry>
+    </collision>
+    <xacro:box_inertial mass="${m_link3}" x="${joint_depth}" y="${joint_width}" z="${link3_len}" zoff="${link3_len/2}"/>
+  </link>
+
+  <!-- j4：腕部俯仰 -->
+  <joint name="joint4" type="revolute">
+    <parent link="link3"/>
+    <child link="link4"/>
+    <origin xyz="0 0 ${link3_len}" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-1.57079633" upper="1.57079633" effort="${effort}" velocity="${velocity}"/>
+    <dynamics damping="0.05" friction="0.02"/>
+  </joint>
+
+  <!-- ================================================================
+       link4 —— 腕部，68.5mm，末端为 j5
+       ================================================================ -->
+  <link name="link4">
+    <visual>
+      <origin xyz="0 0 ${link4_len/2}" rpy="0 0 0"/>
+      <geometry><box size="${joint_depth} ${joint_width} ${link4_len}"/></geometry>
+      <material name="silver"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 ${link4_len/2}" rpy="0 0 0"/>
+      <geometry><box size="${joint_depth} ${joint_width} ${link4_len}"/></geometry>
+    </collision>
+    <xacro:box_inertial mass="${m_link4}" x="${joint_depth}" y="${joint_width}" z="${link4_len}" zoff="${link4_len/2}"/>
+  </link>
+
+  <!-- j5：腕部自转（沿臂轴 Z） -->
+  <joint name="joint5" type="revolute">
+    <parent link="link4"/>
+    <child link="link5"/>
+    <origin xyz="0 0 ${link4_len}" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-3.14159265" upper="3.14159265" effort="${effort}" velocity="${velocity}"/>
+    <dynamics damping="0.05" friction="0.02"/>
+  </joint>
+
+  <!-- ================================================================
+       link5 —— j5 到 j6 的舵机连接段，30mm
+       ================================================================ -->
+  <link name="link5">
+    <visual>
+      <origin xyz="0 0 ${j5_j6/2}" rpy="0 0 0"/>
+      <geometry><cylinder radius="${connector_r}" length="${j5_j6}"/></geometry>
+      <material name="steel"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 ${j5_j6/2}" rpy="0 0 0"/>
+      <geometry><cylinder radius="${connector_r}" length="${j5_j6}"/></geometry>
+    </collision>
+    <xacro:cylinder_inertial mass="${m_link5}" r="${connector_r}" h="${j5_j6}" zoff="${j5_j6/2}"/>
+  </link>
+
+  <!-- j6：夹爪舵机安装节点（结构固定节点，不产生自由度） -->
+  <joint name="joint6" type="fixed">
+    <parent link="link5"/>
+    <child link="gripper_base"/>
+    <origin xyz="0 0 ${j5_j6}" rpy="0 0 0"/>
+  </joint>
+
+  <!-- ================================================================
+       gripper_base —— 夹爪舵机本体，40mm
+       ================================================================ -->
+  <link name="gripper_base">
+    <visual>
+      <origin xyz="0 0 ${servo_len/2}" rpy="0 0 0"/>
+      <geometry><box size="${servo_w} ${servo_d} ${servo_len}"/></geometry>
+      <material name="dark"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 ${servo_len/2}" rpy="0 0 0"/>
+      <geometry><box size="${servo_w} ${servo_d} ${servo_len}"/></geometry>
+    </collision>
+    <xacro:box_inertial mass="${m_servo}" x="${servo_w}" y="${servo_d}" z="${servo_len}" zoff="${servo_len/2}"/>
+  </link>
+
+  <!-- 左指：沿 +Y 张开，行程 0 ~ 20mm -->
+  <joint name="gripper_finger_left_joint" type="prismatic">
+    <parent link="gripper_base"/>
+    <child link="gripper_finger_left"/>
+    <origin xyz="0 ${finger_close_y} ${servo_len}" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="0.0" upper="${finger_travel}" effort="20.0" velocity="0.05"/>
+    <dynamics damping="0.02" friction="0.01"/>
+  </joint>
+
+  <link name="gripper_finger_left">
+    <visual>
+      <origin xyz="0 0 ${finger_len/2}" rpy="0 0 0"/>
+      <geometry><box size="${finger_w} ${finger_t} ${finger_len}"/></geometry>
+      <material name="steel"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 ${finger_len/2}" rpy="0 0 0"/>
+      <geometry><box size="${finger_w} ${finger_t} ${finger_len}"/></geometry>
+    </collision>
+    <xacro:box_inertial mass="${m_finger}" x="${finger_w}" y="${finger_t}" z="${finger_len}" zoff="${finger_len/2}"/>
+  </link>
+
+  <!-- 右指：轴向取 -Y，mimic 左指，实现对称开合 -->
+  <joint name="gripper_finger_right_joint" type="prismatic">
+    <parent link="gripper_base"/>
+    <child link="gripper_finger_right"/>
+    <origin xyz="0 ${-finger_close_y} ${servo_len}" rpy="0 0 0"/>
+    <axis xyz="0 -1 0"/>
+    <limit lower="0.0" upper="${finger_travel}" effort="20.0" velocity="0.05"/>
+    <dynamics damping="0.02" friction="0.01"/>
+    <mimic joint="gripper_finger_left_joint" multiplier="1.0" offset="0.0"/>
+  </joint>
+
+  <link name="gripper_finger_right">
+    <visual>
+      <origin xyz="0 0 ${finger_len/2}" rpy="0 0 0"/>
+      <geometry><box size="${finger_w} ${finger_t} ${finger_len}"/></geometry>
+      <material name="steel"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 ${finger_len/2}" rpy="0 0 0"/>
+      <geometry><box size="${finger_w} ${finger_t} ${finger_len}"/></geometry>
+    </collision>
+    <xacro:box_inertial mass="${m_finger}" x="${finger_w}" y="${finger_t}" z="${finger_len}" zoff="${finger_len/2}"/>
+  </link>
+  <xacro:include filename="$(find my_robot_arm_description)/urdf/robot_arm.ros2_control.xacro"/>
+</robot>

@@ -60,5 +60,3 @@ void Task_object::Servo_Write_Thread(void* arg){
         }
     }
 }
-
-
