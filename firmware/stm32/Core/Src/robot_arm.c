@@ -27,39 +27,33 @@ volatile uint16_t servo_rx_len = 0;
 
 static ServoCache_t g_cache[SEVRO_NUMBER + 1];   /* 下标 = 舵机 id (0..5) */
 
-static void cache_put_pos(uint8_t id, uint16_t pos)
-{
+static void cache_put_pos(uint8_t id, uint16_t pos){
     if (id > SEVRO_NUMBER) return;
     g_cache[id].pos   = pos;
     g_cache[id].valid |= 0x01;
 }
 
-static void cache_put_tv(uint8_t id, double temp, double volt)
-{
+static void cache_put_tv(uint8_t id, double temp, double volt){
     if (id > SEVRO_NUMBER) return;
     g_cache[id].temp  = temp;
     g_cache[id].volt  = volt;
     g_cache[id].valid |= 0x02;
 }
 
-/* ★ 这就是那个「我编出来的」函数，现在给它真的实现 */
-void Servo_cached_get(uint8_t id, double temp_v[2], uint16_t *pos)
-{
+void Servo_cached_get(uint8_t id, double temp_v[2], uint16_t *pos){
     if (id > SEVRO_NUMBER) return;
     if (temp_v) { temp_v[0] = g_cache[id].temp; temp_v[1] = g_cache[id].volt; }
     if (pos)    { *pos      = g_cache[id].pos;  }
 }
 
-uint8_t Servo_cache_valid(uint8_t id)
-{
+uint8_t Servo_cache_valid(uint8_t id){
     return (id <= SEVRO_NUMBER) ? g_cache[id].valid : 0;
 }
 
 /* 上电初始化：把 6 个舵机各读一遍，填满缓存
  * （必须在 UART_task 起来之前或刚开始时调用一次，
  *   否则第一次静默期内缓存是空的，位置会报 0） */
-void Servo_cache_init(void)
-{
+void Servo_cache_init(void){
     memset(g_cache, 0, sizeof(g_cache));
     for (uint8_t i = 0; i <= SEVRO_NUMBER; i++)
     {
@@ -72,8 +66,7 @@ void Servo_cache_init(void)
     }
 }
 
-static uint16_t servo_send_recv(const char *cmd, int len, uint32_t time_ms)
-{
+static uint16_t servo_send_recv(const char *cmd, int len, uint32_t time_ms){
     if (HAL_UART_Transmit(&huart2, (uint8_t*)cmd, len, TIMEOUT) != HAL_OK) {
         return 0;
     }
