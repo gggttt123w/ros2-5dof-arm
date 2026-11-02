@@ -10,6 +10,7 @@
 #include <unistd.h>
 #include <cerrno>
 #include <cstdint>
+#include "pkg.h"
 
 #define ip_cmd_set_can0_params "ip link set can0 type can bitrate 250000 triple-sampling on"
 #define ip_cmd_can0_up         "ifconfig can0 up"
@@ -22,11 +23,17 @@
 //本机服务地址
 #define CAN_ID_CMD_DOWN 0x104 //下命令
 #define CAN_GET_INFO    0x105 //同步两机信息
+#define CAN_BOOTLOADER  0x106 //固件升级请求
+#define CAN_BOOTLOADER_DATA 0x107 //固件数据帧
+#define CAN_BOOTLOADER_READY 0x108 //STM32 擦除完成
+#define CAN_BOOTLOADER_STATUS 0x109 //STM32 校验结果
+
 
 class Cansocket_object{
     private:
         int can_fd;
         int bind_res;
+        uint8_t pkg_size = 8;
         struct sockaddr_can addr{};
         std::vector<struct can_filter>cfer;
         std::string err_ = "Can:";
@@ -46,7 +53,10 @@ class Cansocket_object{
         Cansocket_object(const Cansocket_object&) = delete;
         Cansocket_object& operator=(const Cansocket_object&) = delete;
         bool Can_Socket_Init(const std::string& ifname);
-        bool Can_Write(unsigned char *data,canid_t id,int dlc);
+        bool Can_Write(const uint8_t *data,canid_t id,int dlc);
+        bool Can_WriteRetry(const uint8_t *data,canid_t id,int dlc,int retries = 10);
         bool Can_Read(struct can_frame& frame,uint16_t time_ms);
         std::string Can_geterr(void);
+        pkg pkg_write(const std::string &path);
+        bool Can_pkg_send(pkg &p);
 };

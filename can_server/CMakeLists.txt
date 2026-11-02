@@ -18,6 +18,7 @@ find_package(rclcpp_lifecycle REQUIRED)
 
 # ─────────── 库：不依赖 ROS 的 SocketCAN + 舵机协议层 ───────────
 add_library(arm_can SHARED
+    src/crc32.c
     src/can_init.cpp
     src/Servo_ctrl.cpp
 )
@@ -44,29 +45,31 @@ target_link_libraries(arm_system_hardware PUBLIC
 pluginlib_export_plugin_description_file(
     hardware_interface arm_system_hardware.xml)
 
-# ─────────── 可执行文件 ───────────
 add_executable(arm_server src/arm_server_node.cpp)
 target_link_libraries(arm_server arm_can rclcpp::rclcpp ${sensor_msgs_TARGETS})
 
-add_executable(can_test ./main.cpp)
-target_link_libraries(can_test arm_can)
+add_executable(tcp_server_app
+    main.cpp
+    src/tcp_server.cpp
+    src/crc32.c
+    src/can_init.cpp
+)
+target_include_directories(tcp_server_app PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+target_link_libraries(tcp_server_app PRIVATE Threads::Threads)
 
-# ─────────── 安装 ───────────
-# 可执行文件
-install(TARGETS arm_server can_test
+install(TARGETS arm_server tcp_server_app
         DESTINATION lib/${PROJECT_NAME})
 
-# ★ 插件和它依赖的库都必须在 lib/（pluginlib 从这里加载）
 install(TARGETS arm_system_hardware arm_can
         LIBRARY DESTINATION lib
         ARCHIVE DESTINATION lib
         RUNTIME DESTINATION lib)
 
-# 头文件（给别包 include 用）
 install(DIRECTORY include/
         DESTINATION include)
 
-# ★★★ 就是这行被删了 —— launch 和 config 必须装到 share/ ★★★
 install(DIRECTORY launch config
         DESTINATION share/${PROJECT_NAME})
 
